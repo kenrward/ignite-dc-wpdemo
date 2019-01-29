@@ -1,0 +1,74 @@
+# az cloud set --name AzureUSGovernment
+# az login
+# az account set -s 
+
+RG="WPSTEP01"
+APPNAME=$RG-wp #Name what you want
+LOCATION="USGovVirginia" #put where you like
+
+az group create -n $RG -l $LOCATION
+
+#The sku-name parameter value follows the convention {pricing tier}_{compute generation}_{vCores} as in the examples below:
+# --sku-name B_Gen5_2 maps to Basic, Gen 5, and 2 vCores.
+# --sku-name GP_Gen5_32 maps to General Purpose, Gen 5, and 32 vCores.
+# --sku-name MO_Gen5_2 maps to Memory Optimized, Gen 5, and 2 vCores.
+
+#WARNING - this might error out if your region doesn't support the SKU you set here. If it does, execute:
+#az group delete -g [resource group] to drop everything and try again
+#The SKU below is reasonable for a WP blog, but if you're going to host something more, consider more RAM/Cores
+SKU=B_Gen5_1 #this is the cheapest one
+SERVERNAME=wpke003dbsrv
+USER=kewar
+PASS=$(az keyvault secret show --vault-name ignite-dc-keys -n mysqlpass --query value --output tsv)
+
+
+echo "Spinning up MySQL $SERVERNAME in group $RG Admin is $USER"
+
+# Create the MySQL service
+az mysql server create --resource-group $RG \
+    --name $SERVERNAME --admin-user $USER \
+    --admin-password $PASS --sku-name $SKU \
+    --ssl-enforcement Disabled \
+    --location $LOCATION
+
+echo "Guessing your external IP address from ipinfo.io"
+IP=$(curl -s ipinfo.io/ip)
+echo "Your IP is $IP"
+
+# Open up the firewall so we can access
+echo "Popping a hole in firewall for IP address $IP (that's you)"
+az mysql server firewall-rule create --resource-group $RG \
+        --server $SERVERNAME --name AllowMyIP \
+        --start-ip-address $IP --end-ip-address $IP
+
+# Open up the firewall so Azure Web App can access - this is internal IP only
+echo "Popping a hole in firewall for Azure"
+az mysql server firewall-rule create --resource-group $RG \
+        --server $SERVERNAME --name AllowAzureIP \
+        --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0
+
+DBFQDN=$(az mysql server show -n $SERVERNAME -g $RG --query fullyQualifiedDomainName --output tsv)
+
+echo "Creating WordPress Database"
+#IMPORTANT: you have to have the client installed locally. If you don't, you'll get an error right about here.
+mysql --host=$DBFQDN \
+      --user=$USER@$SERVERNAME --password=$PASS \
+      -e 'create database wordpress;' mysql
+
+mysql --host=$DBFQDN \
+      --user=$USER@$SERVERNAME --password=$PASS \
+      < wordpress.sql
+
+az appservice plan create -l $LOCATION -n $APPNAME-asp -g $RG
+
+az webapp create -n $APPNAME -g $RG -p $APPNAME-asp -u https://github.com/WordPress/WordPress.git  -b master
+
+az webapp config appsettings set --name $APPNAME \
+                                 --resource-group $RG \
+                                 --settings WORDPRESS_DB_HOST=$DBFQDN \
+                                 WORDPRESS_DB_USER=$USER@$SERVERNAME \
+                                 WORDPRESS_DB_PASSWORD=$PASS  \
+                                 WEBSITES_PORT=80 \
+                                 WORDPRESS_DB_NAME=wordpress
+
+
