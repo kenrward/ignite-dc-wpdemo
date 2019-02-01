@@ -1,4 +1,4 @@
-# ignite-dc-wpdemo
+# BRK3553 - Modern Application Development with PaaS in Azure Government : WordPress Migration
 
 ## 1. Create Azure Resources using Azure CLI
 
