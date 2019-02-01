@@ -2,6 +2,8 @@
 
 ## 1. Create Azure Resources using Azure CLI
 
+Open `webapp.azcli` in VSCode.  Ensure Azure CLI Tools extention is enabled to use right-click run in terminal.  Also, switch terminal to bash.
+
 ## 2. Deploy web code via GitHub
 
 ## 3. Deploy database via MySQL Client Tools
