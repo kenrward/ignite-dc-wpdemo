@@ -28,5 +28,6 @@ define( 'DB_HOST', getenv("WORDPRESS_DB_HOST") );
 
 ````
 
-## 5. Update URL with Search Replace DB script deployed via ZipDeploy
+## 5. Update URL with Search Replace DB script deployed via browser
 
+Download zip from https://github.com/interconnectit/Search-Replace-DB
